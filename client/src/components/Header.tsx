@@ -137,6 +137,7 @@ const Header = ({ onCartOpen }: HeaderProps) => {
     { name: "Categories", href: "/categories" },
     { name: "New Arrivals", href: "/new-arrivals" },
     { name: "Sale", href: "/sale" },
+    { name: "About", href: "/about" },
   ];
 
   const isMainRoute = mainRoutes.includes(location.pathname.toLowerCase());
