@@ -3,63 +3,34 @@ import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Link } from 'react-router-dom';
-
+import { Link, useNavigate } from 'react-router-dom';
+import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
 import Footer from '@/components/Footer';
-import collectionImage from '@/assets/collection-showcase.jpg';
 
 const CartPage = () => {
-  const [cartItems, setCartItems] = useState([
-    {
-      id: 1,
-      name: 'Minimalist Blazer',
-      brand: 'UrbanThreadz',
-      price: 189,
-      quantity: 1,
-      size: 'M',
-      color: 'Black',
-      image: collectionImage,
-    },
-    {
-      id: 2,
-      name: 'Oversized Tee',
-      brand: 'UrbanThreadz',
-      price: 45,
-      quantity: 2,
-      size: 'L',
-      color: 'White',
-      image: collectionImage,
-    },
-  ]);
-
+  const navigate = useNavigate();
+  const { cartItems, updateQuantity, removeFromCart, cartTotal, clearCart } = useCart();
+  const { isAuthenticated } = useAuth();
   const [promoCode, setPromoCode] = useState('');
 
-  const updateQuantity = (id: number, newQuantity: number) => {
-    if (newQuantity === 0) {
-      removeItem(id);
-      return;
-    }
-    setCartItems(items =>
-      items.map(item =>
-        item.id === id ? { ...item, quantity: newQuantity } : item
-      )
-    );
-  };
-
-  const removeItem = (id: number) => {
-    setCartItems(items => items.filter(item => item.id !== id));
-  };
-
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const shipping = subtotal > 100 ? 0 : 10;
-  const tax = subtotal * 0.08;
+  const subtotal = cartTotal;
+  const shipping = subtotal > 5000 ? 0 : 350; // Free shipping over 5000 KSh
+  const tax = 0; // No tax for now
   const total = subtotal + shipping + tax;
 
   return (
     <div className="min-h-screen">
       <main className="pt-16">
         <div className="container mx-auto px-4 py-8">
-          <h1 className="text-3xl font-light tracking-wide mb-8">Shopping Cart</h1>
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-light tracking-wide">Shopping Cart</h1>
+            {cartItems.length > 0 && (
+              <Button variant="ghost" onClick={clearCart} className="text-muted-foreground">
+                Clear Cart
+              </Button>
+            )}
+          </div>
 
           {cartItems.length === 0 ? (
             <div className="text-center py-16">
@@ -76,31 +47,49 @@ const CartPage = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
               {/* Cart Items */}
               <div className="lg:col-span-2 space-y-6">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex gap-4 p-6 bg-card rounded-lg shadow-sm">
-                    <div className="w-24 h-32 overflow-hidden rounded-md">
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
+                {cartItems.map((item, index) => (
+                  <div 
+                    key={`${item.productId}-${item.combinationId || index}`} 
+                    className="flex gap-4 p-6 bg-card rounded-lg shadow-sm"
+                  >
+                    <div className="w-24 h-32 overflow-hidden rounded-md bg-gray-100">
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <ShoppingBag className="h-8 w-8" />
+                        </div>
+                      )}
                     </div>
                     
                     <div className="flex-1 space-y-2">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                            {item.brand}
-                          </p>
+                          {item.brand && (
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                              {item.brand}
+                            </p>
+                          )}
                           <h3 className="font-medium">{item.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            {item.color} • Size {item.size}
-                          </p>
+                          {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              {Object.entries(item.selectedOptions)
+                                .map(([key, value]) => `${key}: ${value}`)
+                                .join(' • ')}
+                            </p>
+                          )}
+                          {item.sku && (
+                            <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                          )}
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => removeFromCart(item.productId, item.combinationId)}
                           className="text-muted-foreground hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -113,7 +102,7 @@ const CartPage = () => {
                             variant="outline"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                            onClick={() => updateQuantity(item.productId, item.quantity - 1, item.combinationId)}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
@@ -122,12 +111,19 @@ const CartPage = () => {
                             variant="outline"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                            onClick={() => updateQuantity(item.productId, item.quantity + 1, item.combinationId)}
                           >
                             <Plus className="h-3 w-3" />
                           </Button>
                         </div>
-                        <p className="font-medium">${item.price * item.quantity}</p>
+                        <div className="text-right">
+                          <p className="font-medium">KSh {(item.price * item.quantity).toLocaleString()}</p>
+                          {item.quantity > 1 && (
+                            <p className="text-xs text-muted-foreground">
+                              KSh {item.price.toLocaleString()} each
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -141,21 +137,23 @@ const CartPage = () => {
                   
                   <div className="space-y-4 mb-6">
                     <div className="flex justify-between">
-                      <span>Subtotal</span>
-                      <span>${subtotal.toFixed(2)}</span>
+                      <span>Subtotal ({cartItems.reduce((sum, item) => sum + item.quantity, 0)} items)</span>
+                      <span>KSh {subtotal.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Shipping</span>
-                      <span>{shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}</span>
+                      <span>{shipping === 0 ? 'Free' : `KSh ${shipping.toLocaleString()}`}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span>Tax</span>
-                      <span>${tax.toFixed(2)}</span>
-                    </div>
+                    {tax > 0 && (
+                      <div className="flex justify-between">
+                        <span>Tax</span>
+                        <span>KSh {tax.toLocaleString()}</span>
+                      </div>
+                    )}
                     <Separator />
                     <div className="flex justify-between font-medium text-lg">
                       <span>Total</span>
-                      <span>${total.toFixed(2)}</span>
+                      <span>KSh {total.toLocaleString()}</span>
                     </div>
                   </div>
 
@@ -172,19 +170,28 @@ const CartPage = () => {
                     </div>
                   </div>
 
-                  <Button className="w-full h-12 text-lg mb-4">
+                  <Button 
+                    className="w-full h-12 text-lg mb-4"
+                    onClick={() => {
+                      if (isAuthenticated) {
+                        navigate('/checkout');
+                      } else {
+                        navigate('/auth', { state: { from: { pathname: '/checkout' } } });
+                      }
+                    }}
+                  >
                     Proceed to Checkout
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
 
                   <p className="text-xs text-muted-foreground text-center">
-                    Secure checkout powered by Stripe
+                    Secure checkout powered by M-Pesa & Card
                   </p>
 
-                  {shipping > 0 && (
+                  {shipping > 0 && subtotal < 5000 && (
                     <div className="mt-4 p-3 bg-muted/50 rounded-md">
                       <p className="text-sm text-center">
-                        Add ${(100 - subtotal).toFixed(2)} more for free shipping!
+                        Add KSh {(5000 - subtotal).toLocaleString()} more for free shipping!
                       </p>
                     </div>
                   )}

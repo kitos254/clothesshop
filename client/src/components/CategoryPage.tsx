@@ -32,25 +32,29 @@ const CategoryPage = ({ category }: { category: string }) => {
     setLoading(true);
     setError(null);
     const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
-    fetch(`${baseUrl}/api/products/all`)
+    
+    // Build API URL based on category type
+    let apiUrl = `${baseUrl}/api/products/public`;
+    const params = new URLSearchParams();
+    params.append('limit', '50');
+    params.append('isActive', 'true');
+    
+    // Special handling for Sale and New Arrivals pages
+    if (category === 'Sale') {
+      params.append('isOnSale', 'true');
+    } else if (category === 'New Arrivals') {
+      params.append('isNewArrival', 'true');
+    }
+    
+    apiUrl += `?${params.toString()}`;
+    
+    fetch(apiUrl)
       .then(async (res) => {
         if (!res.ok) throw new Error('Failed to fetch products');
         const data = await res.json();
-        // Map UI category to backend enum value
-        const categoryMap: Record<string, string> = {
-          Men: 'men',
-          Women: 'women',
-          'New Arrivals': 'newarrivals',
-          Collections: 'collection',
-          Sale: 'sale',
-        };
-        const backendCategory = categoryMap[category];
-        // If category matches, filter products to only those that include the backendCategory in their category array
-        let filtered = data;
-        if (backendCategory) {
-          filtered = data.filter((product: any) => Array.isArray(product.category) && product.category.includes(backendCategory));
-        }
-        setProducts(filtered);
+        // Handle both array response and paginated response
+        const productList = Array.isArray(data) ? data : (data.data || []);
+        setProducts(productList);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -71,7 +75,7 @@ const CategoryPage = ({ category }: { category: string }) => {
     },
     {
       name: 'Brand',
-      options: ['UrbanThreadz', 'Street Elite', 'Minimal Co.'],
+      options: ['NewRan', 'Street Elite', 'Minimal Co.'],
     },
   ];
 

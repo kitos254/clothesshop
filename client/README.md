@@ -1,22 +1,63 @@
-# Welcome to your Lovable project
+# NewRan - Home Gear & Electronics
 
-## Project info
+## Project Overview
 
-**URL**: https://lovable.dev/projects/cbf43ad3-fc1c-4363-ba8e-906703a9514b
+NewRan is a modern e-commerce platform specializing in premium home gear, electronics, and kitchen essentials. Built with React, TypeScript, and Tailwind CSS for a fast and responsive user experience.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- Modern, responsive design
+- Product catalog with categories (Kitchen Gear, Electronics, Smart Home, Audio Systems)
+- Shopping cart and wishlist functionality
+- User authentication
+- Search functionality
+- Mobile-optimized interface
 
-**Use Lovable**
+## Getting Started
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/cbf43ad3-fc1c-4363-ba8e-906703a9514b) and start prompting.
+### Prerequisites
+- Node.js 18+ or Bun
+- Package manager (npm, yarn, or bun)
 
-Changes made via Lovable will be committed automatically to this repo.
+### Installation
 
-**Use your preferred IDE**
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   # or
+   bun install
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+3. Start the development server:
+   ```bash
+   npm run dev
+   # or
+   bun dev
+   ```
+
+4. Open [http://localhost:8080](http://localhost:8080) in your browser
+
+## Tech Stack
+
+- **Frontend**: React 18, TypeScript
+- **Styling**: Tailwind CSS, Radix UI components
+- **Routing**: React Router Dom
+- **Build Tool**: Vite
+- **State Management**: React Context API
+- **Animations**: Framer Motion
+
+## Project Structure
+
+```
+src/
+├── components/          # Reusable UI components
+├── pages/              # Page components
+├── contexts/           # React Context providers
+├── hooks/              # Custom React hooks
+├── lib/                # Utility functions
+└── assets/             # Static assets
+```
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 

@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
-import collectionImage from '@/assets/collection-showcase.jpg';
 
 const SearchPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -16,12 +15,12 @@ const SearchPage = () => {
   const mockProducts = Array.from({ length: 8 }, (_, i) => ({
     id: i + 1,
     name: `Search Result ${i + 1}`,
-    brand: 'UrbanThreadz',
+    brand: 'NewRan',
     price: Math.floor(Math.random() * 200) + 50,
     originalPrice: Math.random() > 0.5 ? Math.floor(Math.random() * 100) + 200 : null,
     rating: 4 + Math.random(),
     reviews: Math.floor(Math.random() * 200) + 10,
-    image: collectionImage,
+    image: '/placeholder.svg',
     colors: ['Black', 'White', 'Grey'],
     sizes: ['S', 'M', 'L', 'XL'],
     isNew: Math.random() > 0.7,

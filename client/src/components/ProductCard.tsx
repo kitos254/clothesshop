@@ -16,14 +16,18 @@ interface Review {
 interface Product {
   _id: string;
   name: string;
-  brand?: string;
+  brand?: string | { name: string };
   price: number;
   originalPrice?: number;
+  currentPrice?: number;
   images?: { url: string; publicId?: string }[];
   inStock?: boolean;
+  stock?: { quantity: number };
   features?: string[];
   tags?: string[];
   variationOptions?: { type: string; values: string[] }[];
+  hasVariations?: boolean;
+  variationDefinitions?: any[];
   variationCombinations?: any[];
   category?: string[];
   detailsAndCare?: any[];
@@ -41,40 +45,69 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
   const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
 
+  // Helper to get brand name from string or object
+  const getBrandName = (brand?: string | { name: string }): string | undefined => {
+    if (!brand) return undefined;
+    return typeof brand === 'string' ? brand : brand.name;
+  };
+
+  const brandName = getBrandName(product.brand);
 
   // Calculate average rating and review count from reviews array
   const reviewArr = Array.isArray(product.reviews) ? product.reviews : [];
   const reviewCount = reviewArr.length;
   const avgRating = reviewCount > 0 ? (reviewArr.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviewCount) : 0;
 
-  const inWishlist = isInWishlist(Number(product._id));
+  // Get display price
+  const displayPrice = product.currentPrice || product.price;
+  const originalPrice = product.originalPrice;
+
+  // Calculate total stock considering variations
+  const calculateTotalStock = (): number => {
+    // If product has variations with combinations, sum up all combination stock
+    if (product.hasVariations && product.variationCombinations && product.variationCombinations.length > 0) {
+      return product.variationCombinations.reduce((total, combo) => {
+        const comboStock = combo.stock?.quantity ?? 0;
+        return total + comboStock;
+      }, 0);
+    }
+    // Otherwise use general stock
+    return product.stock?.quantity ?? 0;
+  };
+
+  const totalStock = calculateTotalStock();
+  const isInStock = product.inStock !== false && totalStock > 0;
+  const isLowStock = isInStock && totalStock > 0 && totalStock <= 5;
+
+  const inWishlist = isInWishlist(product._id);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     addToCart({
-      id: Number(product._id),
+      productId: product._id,
       name: product.name,
-      brand: product.brand,
-      price: product.price,
-      // For demo, pick first available option if present
-      size: product.variationOptions?.find(v => v.type === 'size')?.values[0] || 'M',
-      color: product.variationOptions?.find(v => v.type === 'color')?.values[0] || 'Black',
+      brand: brandName,
+      price: displayPrice,
       image: product.images?.[0]?.url || '',
+      selectedOptions: product.variationOptions?.length ? {
+        size: product.variationOptions?.find(v => v.type === 'size')?.values[0],
+        color: product.variationOptions?.find(v => v.type === 'color')?.values[0],
+      } : undefined,
     });
   };
 
   const handleToggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     if (inWishlist) {
-      removeFromWishlist(Number(product._id));
+      removeFromWishlist(product._id);
     } else {
       addToWishlist({
-        id: Number(product._id),
+        productId: product._id,
         name: product.name,
-        brand: product.brand,
-        price: product.price,
+        brand: brandName,
+        price: displayPrice,
         image: product.images?.[0]?.url || '',
-        originalPrice: product.originalPrice,
+        originalPrice: originalPrice,
       });
     }
   };
@@ -106,16 +139,21 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
               className="w-full h-full object-cover"
             />
             {/* Optionally show badges for new or out of stock */}
-            {!product.inStock && (
+            {!isInStock && (
               <Badge variant="destructive" className="absolute top-2 text-xs right-2">
                 Out of Stock
+              </Badge>
+            )}
+            {isLowStock && (
+              <Badge className="absolute top-2 left-2 text-xs bg-orange-500 text-white">
+                Only {totalStock} left
               </Badge>
             )}
           </div>
           <div className="flex-1 space-y-3">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                {product.brand}
+                {brandName}
               </p>
               <h3 className="font-medium text-lg tracking-wide">
                 {product.name}
@@ -170,7 +208,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
                 <Button
                   size="sm"
                   onClick={handleAddToCart}
-                  disabled={product.inStock === false}
+                  disabled={!isInStock}
                 >
                   <ShoppingCart className="h-4 w-4 mr-2" />
                   Add to Cart
@@ -200,9 +238,14 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
           />
           {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-2">
-            {!product.inStock && (
+            {!isInStock && (
               <Badge variant="destructive">
                 Out of Stock
+              </Badge>
+            )}
+            {isLowStock && (
+              <Badge variant="secondary" className="bg-orange-500 text-white hover:bg-orange-600">
+                Only {totalStock} left
               </Badge>
             )}
           </div>
@@ -229,10 +272,10 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
                 variant="secondary"
                 className="bg-background hover:bg-accent hover:text-accent-foreground"
                 onClick={handleAddToCart}
-                disabled={product.inStock === false}
+                disabled={!isInStock}
               >
                 <ShoppingCart className="h-4 w-4 mr-2" />
-                Add to Cart
+                {isInStock ? 'Add to Cart' : 'Out of Stock'}
               </Button>
               <Button
                 size="icon"
@@ -248,7 +291,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
         <div className="space-y-2">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">
-              {product.brand}
+              {brandName}
             </p>
             <h3 className="font-medium text-sm tracking-wide">
               {product.name}

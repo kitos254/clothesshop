@@ -1,16 +1,19 @@
-import { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, EyeOff, Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -19,15 +22,124 @@ const AuthPage = () => {
     confirmPassword: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { login, register, isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+
+  // Get redirect path from location state or default to home
+  const from = (location.state as any)?.from?.pathname || '/';
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      navigate(from, { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate, from]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement authentication with Supabase
-    console.log('Auth form submitted:', formData);
+    setIsSubmitting(true);
+
+    try {
+      if (isLogin) {
+        // Handle login
+        const result = await login(formData.email, formData.password);
+        
+        if (result.success) {
+          toast({
+            title: 'Welcome back!',
+            description: 'You have been signed in successfully.',
+          });
+          navigate(from, { replace: true });
+        } else {
+          toast({
+            title: 'Sign in failed',
+            description: result.error,
+            variant: 'destructive',
+          });
+        }
+      } else {
+        // Handle registration
+        // Validate passwords match
+        if (formData.password !== formData.confirmPassword) {
+          toast({
+            title: 'Passwords do not match',
+            description: 'Please make sure your passwords match.',
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Validate password length
+        if (formData.password.length < 6) {
+          toast({
+            title: 'Password too short',
+            description: 'Password must be at least 6 characters.',
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        const result = await register({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword,
+        });
+        
+        if (result.success) {
+          toast({
+            title: 'Account created!',
+            description: 'Welcome to NewRan. Your account has been created successfully.',
+          });
+          navigate(from, { replace: true });
+        } else {
+          toast({
+            title: 'Registration failed',
+            description: result.error,
+            variant: 'destructive',
+          });
+        }
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    // Reset form when switching modes
+    setFormData({
+      email: '',
+      password: '',
+      firstName: '',
+      lastName: '',
+      confirmPassword: '',
+    });
+  };
+
+  // Show loading state while checking auth
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -40,8 +152,8 @@ const AuthPage = () => {
             </h1>
             <p className="text-muted-foreground">
               {isLogin 
-                ? 'Sign in to your UrbanThreadz account' 
-                : 'Join the UrbanThreadz community'
+                ? 'Sign in to your NewRan account' 
+                : 'Join the NewRan community'
               }
             </p>
           </div>
@@ -61,6 +173,7 @@ const AuthPage = () => {
                       onChange={(e) => handleInputChange('firstName', e.target.value)}
                       className="pl-10"
                       required={!isLogin}
+                      disabled={isSubmitting}
                     />
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   </div>
@@ -74,6 +187,7 @@ const AuthPage = () => {
                     value={formData.lastName}
                     onChange={(e) => handleInputChange('lastName', e.target.value)}
                     required={!isLogin}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -90,6 +204,7 @@ const AuthPage = () => {
                   onChange={(e) => handleInputChange('email', e.target.value)}
                   className="pl-10"
                   required
+                  disabled={isSubmitting}
                 />
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               </div>
@@ -106,6 +221,8 @@ const AuthPage = () => {
                   onChange={(e) => handleInputChange('password', e.target.value)}
                   className="pl-10 pr-10"
                   required
+                  minLength={6}
+                  disabled={isSubmitting}
                 />
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Button
@@ -114,6 +231,7 @@ const AuthPage = () => {
                   size="icon"
                   className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
                   onClick={() => setShowPassword(!showPassword)}
+                  disabled={isSubmitting}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
@@ -132,6 +250,8 @@ const AuthPage = () => {
                     onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
                     className="pl-10"
                     required={!isLogin}
+                    minLength={6}
+                    disabled={isSubmitting}
                   />
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
@@ -141,7 +261,7 @@ const AuthPage = () => {
             {isLogin && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <Checkbox id="remember" />
+                  <Checkbox id="remember" disabled={isSubmitting} />
                   <Label htmlFor="remember" className="text-sm">
                     Remember me
                   </Label>
@@ -157,7 +277,7 @@ const AuthPage = () => {
 
             {!isLogin && (
               <div className="flex items-start space-x-2">
-                <Checkbox id="terms" required />
+                <Checkbox id="terms" required disabled={isSubmitting} />
                 <Label htmlFor="terms" className="text-sm leading-relaxed">
                   I agree to the{' '}
                   <Link to="/terms" className="text-accent hover:text-accent/80 transition-colors">
@@ -171,9 +291,18 @@ const AuthPage = () => {
               </div>
             )}
 
-            <Button type="submit" className="w-full h-12 text-lg">
-              {isLogin ? 'Sign In' : 'Create Account'}
-              <ArrowRight className="h-4 w-4 ml-2" />
+            <Button type="submit" className="w-full h-12 text-lg" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {isLogin ? 'Signing In...' : 'Creating Account...'}
+                </>
+              ) : (
+                <>
+                  {isLogin ? 'Sign In' : 'Create Account'}
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </>
+              )}
             </Button>
           </form>
 
@@ -187,7 +316,7 @@ const AuthPage = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled={isSubmitting}>
                 <svg className="h-4 w-4 mr-2" viewBox="0 0 24 24">
                   <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                   <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -196,7 +325,7 @@ const AuthPage = () => {
                 </svg>
                 Google
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled={isSubmitting}>
                 <svg className="h-4 w-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                 </svg>
@@ -212,7 +341,8 @@ const AuthPage = () => {
               <Button
                 variant="link"
                 className="p-0 ml-1 text-accent hover:text-accent/80"
-                onClick={() => setIsLogin(!isLogin)}
+                onClick={switchMode}
+                disabled={isSubmitting}
               >
                 {isLogin ? 'Sign up' : 'Sign in'}
               </Button>

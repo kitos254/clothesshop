@@ -1,22 +1,21 @@
 import { Instagram, Twitter, Facebook, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
   const footerSections = [
     {
       title: 'Shop',
       links: [
-        { name: 'Men', href: '#' },
-        { name: 'Women', href: '#' },
-        { name: 'New Arrivals', href: '#' },
-        { name: 'Sale', href: '#' },
-        { name: 'Gift Cards', href: '#' },
+        { name: 'All Products', href: '/shop' },
+        { name: 'Categories', href: '/categories' },
+        { name: 'New Arrivals', href: '/new-arrivals' },
+        { name: 'Sale', href: '/sale' },
       ],
     },
     {
       title: 'Support',
       links: [
-        { name: 'Size Guide', href: '#' },
         { name: 'Shipping & Returns', href: '#' },
         { name: 'Contact Us', href: '#' },
         { name: 'FAQ', href: '#' },
@@ -28,9 +27,7 @@ const Footer = () => {
       links: [
         { name: 'About Us', href: '#' },
         { name: 'Careers', href: '#' },
-        { name: 'Sustainability', href: '#' },
         { name: 'Press', href: '#' },
-        { name: 'Stores', href: '#' },
       ],
     },
   ];
@@ -44,7 +41,7 @@ const Footer = () => {
             Stay in the Loop
           </h3>
           <p className="text-primary-foreground/80 mb-6 max-w-md mx-auto">
-            Be the first to know about new collections, exclusive offers, and style inspiration.
+            Be the first to know about new collections, exclusive offers, and quality products.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 max-w-md mx-auto">
             <input
@@ -66,11 +63,11 @@ const Footer = () => {
           {/* Brand Section */}
           <div className="lg:col-span-1">
             <h2 className="text-2xl font-light tracking-widest mb-4">
-              URBANTHREADZ
+              NEWRAN
             </h2>
             <p className="text-primary-foreground/80 mb-6 text-sm leading-relaxed">
-              Redefining urban fashion with contemporary designs that blend comfort, 
-              style, and sustainability for the modern wardrobe.
+              Your trusted destination for premium electronics and home appliances. 
+              Quality products, competitive prices, and exceptional service for modern living.
             </p>
             <div className="flex space-x-4">
               <Button
@@ -113,12 +110,21 @@ const Footer = () => {
               <ul className="space-y-3">
                 {section.links.map((link) => (
                   <li key={link.name}>
-                    <a
-                      href={link.href}
-                      className="text-primary-foreground/80 hover:text-primary-foreground transition-colors text-sm"
-                    >
-                      {link.name}
-                    </a>
+                    {link.href.startsWith('/') ? (
+                      <Link
+                        to={link.href}
+                        className="text-primary-foreground/80 hover:text-primary-foreground transition-colors text-sm"
+                      >
+                        {link.name}
+                      </Link>
+                    ) : (
+                      <a
+                        href={link.href}
+                        className="text-primary-foreground/80 hover:text-primary-foreground transition-colors text-sm"
+                      >
+                        {link.name}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -130,7 +136,7 @@ const Footer = () => {
         <div className="border-t border-primary-foreground/20 pt-8">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6 text-sm text-primary-foreground/60">
-              <span>© 2024 UrbanThreadz. All rights reserved.</span>
+              <span>© 2026 NewRan. All rights reserved.</span>
               <div className="flex space-x-6">
                 <a href="#" className="hover:text-primary-foreground transition-colors">
                   Privacy Policy
@@ -144,7 +150,7 @@ const Footer = () => {
               </div>
             </div>
             <div className="text-sm text-primary-foreground/60">
-              Free shipping on orders over $100
+              Free shipping on orders over Ksh 5,000
             </div>
           </div>
         </div>

@@ -1,49 +1,22 @@
-import { useState } from 'react';
-import { Heart, ShoppingCart, Trash2 } from 'lucide-react';
+import { Heart, ShoppingCart, Trash2, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-
+import { useWishlist } from '@/contexts/WishlistContext';
+import { useCart } from '@/contexts/CartContext';
 import Footer from '@/components/Footer';
-import collectionImage from '@/assets/collection-showcase.jpg';
 
 const WishlistPage = () => {
-  const [wishlistItems, setWishlistItems] = useState([
-    {
-      id: 1,
-      name: 'Minimalist Blazer',
-      brand: 'UrbanThreadz',
-      price: 189,
-      originalPrice: 229,
-      image: collectionImage,
-      inStock: true,
-    },
-    {
-      id: 2,
-      name: 'Cropped Jacket',
-      brand: 'UrbanThreadz',
-      price: 159,
-      originalPrice: null,
-      image: collectionImage,
-      inStock: false,
-    },
-    {
-      id: 3,
-      name: 'Wide Leg Pants',
-      brand: 'UrbanThreadz',
-      price: 129,
-      originalPrice: null,
-      image: collectionImage,
-      inStock: true,
-    },
-  ]);
+  const { wishlistItems, removeFromWishlist, clearWishlist } = useWishlist();
+  const { addToCart } = useCart();
 
-  const removeFromWishlist = (id: number) => {
-    setWishlistItems(items => items.filter(item => item.id !== id));
-  };
-
-  const addToCart = (id: number) => {
-    // TODO: Implement add to cart functionality with Supabase
-    console.log('Added to cart:', id);
+  const handleAddToCart = (item: typeof wishlistItems[0]) => {
+    addToCart({
+      productId: item.productId,
+      name: item.name,
+      brand: item.brand,
+      price: item.price,
+      image: item.image,
+    });
   };
 
   return (
@@ -52,9 +25,16 @@ const WishlistPage = () => {
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <h1 className="text-3xl font-light tracking-wide">My Wishlist</h1>
-            <p className="text-muted-foreground">
-              {wishlistItems.length} {wishlistItems.length === 1 ? 'item' : 'items'}
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-muted-foreground">
+                {wishlistItems.length} {wishlistItems.length === 1 ? 'item' : 'items'}
+              </p>
+              {wishlistItems.length > 0 && (
+                <Button variant="ghost" onClick={clearWishlist} className="text-muted-foreground">
+                  Clear All
+                </Button>
+              )}
+            </div>
           </div>
 
           {wishlistItems.length === 0 ? (
@@ -69,62 +49,63 @@ const WishlistPage = () => {
               </Link>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {wishlistItems.map((item) => (
-                <div key={item.id} className="bg-card rounded-lg shadow-sm overflow-hidden group">
-                  <div className="relative aspect-[3/4] overflow-hidden">
-                    <Link to={`/product/${item.id}`}>
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
+                <div key={item.productId} className="bg-card rounded-lg shadow-sm overflow-hidden group">
+                  <div className="relative aspect-square overflow-hidden bg-gray-100">
+                    <Link to={`/product/${item.productId}`}>
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <Package className="h-12 w-12" />
+                        </div>
+                      )}
                     </Link>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="absolute top-2 right-2 bg-background/80 hover:bg-background text-red-500"
-                      onClick={() => removeFromWishlist(item.id)}
+                      onClick={() => removeFromWishlist(item.productId)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
-                    {!item.inStock && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <span className="bg-destructive text-destructive-foreground px-3 py-1 rounded text-sm font-medium">
-                          Out of Stock
-                        </span>
-                      </div>
-                    )}
                   </div>
                   
-                  <div className="p-4 space-y-3">
+                  <div className="p-3 space-y-2">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                        {item.brand}
-                      </p>
-                      <Link to={`/product/${item.id}`}>
-                        <h3 className="font-medium hover:text-accent transition-colors">
+                      {item.brand && (
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                          {item.brand}
+                        </p>
+                      )}
+                      <Link to={`/product/${item.productId}`}>
+                        <h3 className="font-medium text-sm line-clamp-2 hover:text-primary transition-colors">
                           {item.name}
                         </h3>
                       </Link>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">${item.price}</span>
-                      {item.originalPrice && (
-                        <span className="text-sm text-muted-foreground line-through">
-                          ${item.originalPrice}
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">KSh {item.price.toLocaleString()}</span>
+                      {item.originalPrice && item.originalPrice > item.price && (
+                        <span className="text-xs text-muted-foreground line-through">
+                          KSh {item.originalPrice.toLocaleString()}
                         </span>
                       )}
                     </div>
                     
                     <Button
                       className="w-full"
-                      onClick={() => addToCart(item.id)}
-                      disabled={!item.inStock}
+                      size="sm"
+                      onClick={() => handleAddToCart(item)}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
-                      {item.inStock ? 'Add to Cart' : 'Out of Stock'}
+                      Add to Cart
                     </Button>
                   </div>
                 </div>

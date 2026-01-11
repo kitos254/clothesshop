@@ -39,8 +39,8 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
           </div>
         ) : (
           <div className="space-y-4">
-            {cartItems.map((item) => (
-              <div key={`${item.id}-${item.size}-${item.color}`} className="flex gap-3 p-3 bg-card rounded-lg">
+            {cartItems.map((item, index) => (
+              <div key={`${item.productId}-${item.combinationId || index}`} className="flex gap-3 p-3 bg-card rounded-lg">
                 <div className="w-16 h-20 overflow-hidden rounded-md">
                   <img
                     src={item.image}
@@ -52,19 +52,23 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                 <div className="flex-1 space-y-2">
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
-                        {item.brand}
-                      </p>
+                      {item.brand && (
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider">
+                          {item.brand}
+                        </p>
+                      )}
                       <h4 className="font-medium text-sm">{item.name}</h4>
-                      <p className="text-xs text-muted-foreground">
-                        {item.color} • Size {item.size}
-                      </p>
+                      {item.selectedOptions && Object.keys(item.selectedOptions).length > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          {Object.entries(item.selectedOptions).map(([k, v]) => `${k}: ${v}`).join(' • ')}
+                        </p>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      onClick={() => removeFromCart(item.id)}
+                      onClick={() => removeFromCart(item.productId, item.combinationId)}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -76,7 +80,7 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                         variant="outline"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        onClick={() => updateQuantity(item.productId, item.quantity - 1, item.combinationId)}
                       >
                         <Minus className="h-2 w-2" />
                       </Button>
@@ -85,12 +89,12 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
                         variant="outline"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        onClick={() => updateQuantity(item.productId, item.quantity + 1, item.combinationId)}
                       >
                         <Plus className="h-2 w-2" />
                       </Button>
                     </div>
-                    <p className="font-medium text-sm">${(item.price * item.quantity).toFixed(2)}</p>
+                    <p className="font-medium text-sm">KSh {(item.price * item.quantity).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
@@ -103,7 +107,7 @@ const CartDrawer = ({ open, onOpenChange }: CartDrawerProps) => {
         <div className="border-t p-4 space-y-4">
           <div className="flex justify-between items-center">
             <span className="font-medium">Total</span>
-            <span className="font-bold text-lg">${cartTotal.toFixed(2)}</span>
+            <span className="font-bold text-lg">KSh {cartTotal.toLocaleString()}</span>
           </div>
           <div className="space-y-2">
             <Link to="/cart" onClick={() => onOpenChange(false)}>

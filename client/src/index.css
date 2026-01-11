@@ -184,3 +184,28 @@ All colors MUST be HSL.
     transform: translateY(0);
   }
 }
+
+/* Hide Scrollbar Completely */
+::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  background: transparent;
+}
+
+::-webkit-scrollbar-track {
+  display: none;
+}
+
+::-webkit-scrollbar-thumb {
+  display: none;
+}
+
+/* Firefox scrollbar */
+html {
+  scrollbar-width: none; /* Firefox */
+}
+
+/* For Internet Explorer and Edge */
+body {
+  -ms-overflow-style: none; /* IE and Edge */
+}
