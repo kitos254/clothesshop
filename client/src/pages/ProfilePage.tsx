@@ -112,11 +112,17 @@ const ProfilePage = () => {
     }
   }, [customer]);
 
+  // Fetch order stats on mount when authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchOrderStats();
+    }
+  }, [isAuthenticated]);
+
   // Fetch orders when tab changes to orders
   useEffect(() => {
     if (activeTab === 'orders' && isAuthenticated) {
       fetchOrders();
-      fetchOrderStats();
     }
   }, [activeTab, isAuthenticated]);
 
