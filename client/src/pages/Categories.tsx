@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Loader2, ChevronRight } from "lucide-react";
+import { Loader2, ChevronRight, Menu, X } from "lucide-react";
 
 interface Category {
   _id: string;
@@ -24,6 +24,7 @@ const ShopPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedParent, setSelectedParent] = useState<Category | null>(null);
   const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -151,6 +152,7 @@ const ShopPage = () => {
 
   const handleParentClick = (parent: Category) => {
     setSelectedParent(parent);
+    setShowMobileSidebar(false); // Close sidebar on mobile after selection
   };
 
   const handleGrandchildClick = (grandchild: Category) => {
@@ -192,9 +194,37 @@ const ShopPage = () => {
             <p className="text-gray-500 text-lg">No categories with products available</p>
           </div>
         ) : (
-          <div className="flex h-full">
+          <div className="flex h-full relative">
+            {/* Mobile Toggle Button */}
+            <button
+              onClick={() => setShowMobileSidebar(!showMobileSidebar)}
+              className="md:hidden fixed bottom-20 left-4 z-50 bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors"
+            >
+              {showMobileSidebar ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+
+            {/* Mobile Overlay */}
+            {showMobileSidebar && (
+              <div 
+                className="md:hidden fixed inset-0 bg-black/50 z-30"
+                onClick={() => setShowMobileSidebar(false)}
+              />
+            )}
+
             {/* Left Sidebar - Parent Categories */}
-            <div className="w-64 bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto">
+            <div className={`
+              w-64 bg-white border-r border-gray-200 flex-shrink-0 overflow-y-auto
+              md:relative md:translate-x-0 md:opacity-100
+              fixed top-12 left-0 h-[calc(100vh-3rem)] z-40
+              transition-all duration-300 ease-in-out
+              ${showMobileSidebar ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 md:opacity-100'}
+            `}>
+              <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <span className="font-semibold text-gray-800">Categories</span>
+                <button onClick={() => setShowMobileSidebar(false)}>
+                  <X className="h-5 w-5 text-gray-600" />
+                </button>
+              </div>
               <nav className="py-2">
                 {filteredCategories.map((parent) => (
                   <button

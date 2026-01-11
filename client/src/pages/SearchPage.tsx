@@ -1,62 +1,112 @@
-import { useState } from 'react';
-import { Search, X, TrendingUp, Clock } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, X, TrendingUp, Clock, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 import Footer from '@/components/Footer';
 import ProductCard from '@/components/ProductCard';
 
+const RECENT_SEARCHES_KEY = 'newran_recent_searches';
+const MAX_RECENT_SEARCHES = 5;
+
 const SearchPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-
-  // Mock search functionality
-  const mockProducts = Array.from({ length: 8 }, (_, i) => ({
-    id: i + 1,
-    name: `Search Result ${i + 1}`,
-    brand: 'NewRan',
-    price: Math.floor(Math.random() * 200) + 50,
-    originalPrice: Math.random() > 0.5 ? Math.floor(Math.random() * 100) + 200 : null,
-    rating: 4 + Math.random(),
-    reviews: Math.floor(Math.random() * 200) + 10,
-    image: '/placeholder.svg',
-    colors: ['Black', 'White', 'Grey'],
-    sizes: ['S', 'M', 'L', 'XL'],
-    isNew: Math.random() > 0.7,
-    inStock: Math.random() > 0.1,
-  }));
+  const [hasSearched, setHasSearched] = useState(false);
+  const [totalResults, setTotalResults] = useState(0);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
   const trendingSearches = [
-    'Minimalist blazer',
-    'Oversized tee',
-    'Wide leg pants',
-    'Cropped jacket',
-    'Statement accessories',
+    'Wireless headphones',
+    'Smart watch',
+    'Bluetooth speaker',
+    'Power bank',
+    'LED lighting',
+    'Kitchen appliances',
+    'Home security',
+    'Gaming accessories',
   ];
 
-  const recentSearches = [
-    'Black jeans',
-    'White sneakers',
-    'Denim jacket',
-  ];
+  // Load recent searches from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem(RECENT_SEARCHES_KEY);
+    if (saved) {
+      try {
+        setRecentSearches(JSON.parse(saved));
+      } catch {
+        setRecentSearches([]);
+      }
+    }
+  }, []);
 
-  const handleSearch = () => {
-    if (!searchQuery.trim()) return;
+  // Save search to recent searches
+  const saveRecentSearch = useCallback((query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+    
+    setRecentSearches(prev => {
+      const filtered = prev.filter(s => s.toLowerCase() !== trimmed.toLowerCase());
+      const updated = [trimmed, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+      localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  // Clear recent searches
+  const clearRecentSearches = () => {
+    setRecentSearches([]);
+    localStorage.removeItem(RECENT_SEARCHES_KEY);
+  };
+
+  const handleSearch = async (query?: string) => {
+    const searchTerm = query || searchQuery;
+    if (!searchTerm.trim()) return;
     
     setIsSearching(true);
-    // Simulate API call
-    setTimeout(() => {
-      setSearchResults(mockProducts.filter(p => 
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-      ));
+    setHasSearched(true);
+    
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+      const params = new URLSearchParams({
+        search: searchTerm.trim(),
+        limit: '50',
+        isActive: 'true',
+      });
+      
+      const response = await fetch(`${baseUrl}/api/products/public?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+      
+      const data = await response.json();
+      const products = Array.isArray(data) ? data : (data.data || []);
+      
+      setSearchResults(products);
+      setTotalResults(data.pagination?.totalItems || products.length);
+      
+      // Save to recent searches
+      saveRecentSearch(searchTerm);
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+      setTotalResults(0);
+    } finally {
       setIsSearching(false);
-    }, 500);
+    }
   };
 
   const clearSearch = () => {
     setSearchQuery('');
     setSearchResults([]);
+    setHasSearched(false);
+    setTotalResults(0);
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchQuery(suggestion);
+    handleSearch(suggestion);
   };
 
   return (
@@ -74,7 +124,7 @@ const SearchPage = () => {
               <div className="relative">
                 <Input
                   type="text"
-                  placeholder="Search for products, brands, or categories..."
+                  placeholder="Search for electronics, home gear, brands..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -92,11 +142,15 @@ const SearchPage = () => {
                     </Button>
                   )}
                   <Button
-                    onClick={handleSearch}
+                    onClick={() => handleSearch()}
                     className="h-8"
-                    disabled={!searchQuery.trim()}
+                    disabled={!searchQuery.trim() || isSearching}
                   >
-                    <Search className="h-4 w-4" />
+                    {isSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </div>
@@ -105,7 +159,7 @@ const SearchPage = () => {
         </div>
 
         <div className="container mx-auto px-4 py-8">
-          {!searchResults.length && !isSearching && (
+          {!hasSearched && !isSearching && (
             <div className="max-w-4xl mx-auto">
               {/* Trending Searches */}
               <div className="mb-8">
@@ -119,10 +173,7 @@ const SearchPage = () => {
                       key={search}
                       variant="outline"
                       className="rounded-full"
-                      onClick={() => {
-                        setSearchQuery(search);
-                        handleSearch();
-                      }}
+                      onClick={() => handleSuggestionClick(search)}
                     >
                       {search}
                     </Button>
@@ -131,66 +182,79 @@ const SearchPage = () => {
               </div>
 
               {/* Recent Searches */}
-              <div>
-                <h2 className="flex items-center text-xl font-medium mb-4">
-                  <Clock className="h-5 w-5 mr-2" />
-                  Recent Searches
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {recentSearches.map((search) => (
+              {recentSearches.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="flex items-center text-xl font-medium">
+                      <Clock className="h-5 w-5 mr-2" />
+                      Recent Searches
+                    </h2>
                     <Button
-                      key={search}
                       variant="ghost"
-                      className="rounded-full text-muted-foreground"
-                      onClick={() => {
-                        setSearchQuery(search);
-                        handleSearch();
-                      }}
+                      size="sm"
+                      onClick={clearRecentSearches}
+                      className="text-muted-foreground"
                     >
-                      {search}
+                      Clear all
                     </Button>
-                  ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {recentSearches.map((search) => (
+                      <Button
+                        key={search}
+                        variant="ghost"
+                        className="rounded-full text-muted-foreground"
+                        onClick={() => handleSuggestionClick(search)}
+                      >
+                        {search}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
 
           {isSearching && (
             <div className="text-center py-16">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-              <p className="text-muted-foreground">Searching...</p>
+              <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+              <p className="text-muted-foreground">Searching for "{searchQuery}"...</p>
             </div>
           )}
 
-          {searchResults.length > 0 && (
+          {searchResults.length > 0 && !isSearching && (
             <div>
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-2xl font-light">
                   Search Results for "{searchQuery}"
                 </h2>
                 <p className="text-muted-foreground">
-                  {searchResults.length} items found
+                  {totalResults} {totalResults === 1 ? 'item' : 'items'} found
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
                 {searchResults.map((product) => (
-                  <ProductCard key={product.id} product={product} />
+                  <ProductCard key={product._id || product.id} product={product} />
                 ))}
               </div>
             </div>
           )}
 
-          {searchQuery && searchResults.length === 0 && !isSearching && (
+          {hasSearched && searchResults.length === 0 && !isSearching && (
             <div className="text-center py-16">
               <Search className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <h2 className="text-2xl font-light mb-2">No results found</h2>
               <p className="text-muted-foreground mb-6">
-                Try adjusting your search or browse our categories
+                No products match "{searchQuery}". Try different keywords or browse our categories.
               </p>
               <div className="flex justify-center space-x-4">
-                <Button variant="outline">Browse Men</Button>
-                <Button variant="outline">Browse Women</Button>
+                <Button variant="outline" onClick={() => window.location.href = '/categories'}>
+                  Browse Categories
+                </Button>
+                <Button variant="outline" onClick={() => window.location.href = '/new-arrivals'}>
+                  New Arrivals
+                </Button>
               </div>
             </div>
           )}
