@@ -58,7 +58,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
   const avgRating = reviewCount > 0 ? (reviewArr.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviewCount) : 0;
 
   // Get display price - currentPrice is the selling price, comparePrice is the crossed-out price
-  const displayPrice = product.currentPrice || product.price;
+  const displayPrice = product.currentPrice ?? product.price ?? 0;
   // comparePrice is the "was" price (like MSRP), originalPrice is fallback
   const compareAtPrice = product.comparePrice || product.originalPrice;
   // Only show compare price if it's higher than display price
