@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, ChevronRight, Menu, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Category {
   _id: string;
@@ -16,18 +17,28 @@ interface Category {
   };
 }
 
+// Cache for category images to avoid refetching
+const imageCache = new Map<string, string>();
+
 const ShopPage = () => {
   const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [filteredCategories, setFilteredCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [imagesLoading, setImagesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedParent, setSelectedParent] = useState<Category | null>(null);
   const [categoryImages, setCategoryImages] = useState<Record<string, string>>({});
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     fetchCategories();
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   // Filter categories to only show those with products
@@ -40,60 +51,102 @@ const ShopPage = () => {
       if (filtered.length > 0 && !selectedParent) {
         setSelectedParent(filtered[0]);
       }
-      
-      // Fetch product images for all grandchildren
-      fetchProductImagesForCategories(filtered);
     }
   }, [categories]);
 
-  // Fetch random product images for each grandchild category
-  const fetchProductImagesForCategories = async (parents: Category[]) => {
+  // Fetch images only for the selected parent's grandchildren
+  useEffect(() => {
+    if (selectedParent) {
+      fetchProductImagesForSelectedParent(selectedParent);
+    }
+  }, [selectedParent]);
+
+  // Fetch random product images only for the selected parent's grandchildren
+  const fetchProductImagesForSelectedParent = useCallback(async (parent: Category) => {
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
-    const imageMap: Record<string, string> = {};
-    const timestamp = Date.now(); // Cache-busting timestamp
     
-    // Collect all grandchild category IDs
-    const grandchildren: Category[] = [];
-    for (const parent of parents) {
-      for (const child of parent.children || []) {
-        for (const grandchild of child.children || []) {
-          grandchildren.push(grandchild);
+    // Collect grandchildren that don't have cached images
+    const grandchildrenToFetch: Category[] = [];
+    const cachedImages: Record<string, string> = {};
+    
+    for (const child of parent.children || []) {
+      for (const grandchild of child.children || []) {
+        const cached = imageCache.get(grandchild._id);
+        if (cached) {
+          cachedImages[grandchild._id] = cached;
+        } else {
+          grandchildrenToFetch.push(grandchild);
         }
       }
     }
     
-    // Fetch product images in parallel (batch of 10 at a time to avoid overwhelming the server)
-    const batchSize = 10;
-    for (let i = 0; i < grandchildren.length; i += batchSize) {
-      const batch = grandchildren.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map(async (gc) => {
-          try {
-            const res = await fetch(
-              `${baseUrl}/api/products/public?category=${gc._id}&limit=20&isActive=true&_t=${timestamp}`
-            );
-            if (res.ok) {
-              const data = await res.json();
-              const products = Array.isArray(data) ? data : (data.data || []);
-              if (products.length > 0) {
-                // Pick a random product
-                const randomIndex = Math.floor(Math.random() * products.length);
-                const randomProduct = products[randomIndex];
-                const productImage = randomProduct?.images?.[0]?.url;
-                if (productImage) {
-                  imageMap[gc._id] = productImage;
-                }
-              }
-            }
-          } catch (err) {
-            console.error(`Error fetching product for ${gc.name}:`, err);
-          }
-        })
-      );
+    // Apply cached images immediately
+    if (Object.keys(cachedImages).length > 0) {
+      setCategoryImages(prev => ({ ...prev, ...cachedImages }));
     }
     
-    setCategoryImages(prev => ({ ...prev, ...imageMap }));
-  };
+    // If all images are cached, no need to fetch
+    if (grandchildrenToFetch.length === 0) {
+      return;
+    }
+    
+    setImagesLoading(true);
+    const imageMap: Record<string, string> = {};
+    
+    // Fetch product images in parallel (batch of 5 at a time for faster response)
+    const batchSize = 5;
+    try {
+      for (let i = 0; i < grandchildrenToFetch.length; i += batchSize) {
+        const batch = grandchildrenToFetch.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (gc) => {
+            try {
+              const res = await fetch(
+                `${baseUrl}/api/products/public?category=${gc._id}&limit=5&isActive=true`,
+                { signal }
+              );
+              if (res.ok) {
+                const data = await res.json();
+                const products = Array.isArray(data) ? data : (data.data || []);
+                if (products.length > 0) {
+                  // Pick a random product
+                  const randomIndex = Math.floor(Math.random() * products.length);
+                  const randomProduct = products[randomIndex];
+                  const productImage = randomProduct?.images?.[0]?.url;
+                  if (productImage) {
+                    imageMap[gc._id] = productImage;
+                    imageCache.set(gc._id, productImage); // Cache it
+                  }
+                }
+              }
+            } catch (err: any) {
+              if (err.name !== 'AbortError') {
+                console.error(`Error fetching product for ${gc.name}:`, err);
+              }
+            }
+          })
+        );
+        
+        // Update images progressively as each batch completes
+        if (Object.keys(imageMap).length > 0) {
+          setCategoryImages(prev => ({ ...prev, ...imageMap }));
+        }
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error('Error fetching images:', err);
+      }
+    } finally {
+      setImagesLoading(false);
+    }
+  }, []);
 
   // Filter function: only show categories with complete product tree
   const filterCategoriesWithProducts = (parents: Category[]): Category[] => {
@@ -161,10 +214,38 @@ const ShopPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-600" />
-          <p className="mt-2 text-gray-600">Loading categories...</p>
+      <div className="h-screen bg-gray-100 pt-12 overflow-hidden">
+        <div className="h-full max-w-[2000px] mx-auto">
+          <div className="flex h-full relative">
+            {/* Skeleton Sidebar */}
+            <div className="w-64 bg-white border-r border-gray-200 flex-shrink-0 hidden md:block">
+              <div className="py-4 px-4 space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 w-full rounded" />
+                ))}
+              </div>
+            </div>
+
+            {/* Skeleton Main Content */}
+            <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+              <div className="space-y-8">
+                {Array.from({ length: 2 }).map((_, sectionIdx) => (
+                  <div key={sectionIdx}>
+                    <Skeleton className="h-7 w-32 mb-4" />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="bg-white rounded-lg p-4">
+                          <Skeleton className="w-full aspect-square rounded-lg mb-3" />
+                          <Skeleton className="h-4 w-3/4 mx-auto mb-2" />
+                          <Skeleton className="h-3 w-1/2 mx-auto" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -267,14 +348,17 @@ const ShopPage = () => {
                                   onClick={() => handleGrandchildClick(grandchild)}
                                   className="bg-white rounded-lg p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 border border-gray-200"
                                 >
-                                  {/* Category Image - Random Product */}
+                                  {/* Category Image - Random Product with loading state */}
                                   <div className="w-full aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden">
                                     {categoryImages[grandchild._id] ? (
                                       <img
                                         src={categoryImages[grandchild._id]}
                                         alt={grandchild.name}
                                         className="w-full h-full object-cover"
+                                        loading="lazy"
                                       />
+                                    ) : imagesLoading ? (
+                                      <Skeleton className="w-full h-full" />
                                     ) : (
                                       <div className="w-full h-full flex items-center justify-center">
                                         <span className="text-4xl">📦</span>

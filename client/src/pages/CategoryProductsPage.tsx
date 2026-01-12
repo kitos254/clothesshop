@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Loader2, ChevronRight, Grid3X3, List, SlidersHorizontal, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import ProductCard from "@/components/ProductCard";
 
 interface Category {
@@ -83,9 +84,26 @@ const calculateProductInStock = (product: any): boolean => {
   return (product.stock?.quantity || 0) > 0;
 };
 
+// Simple in-memory cache for category data
+const categoryCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const getCachedCategory = (slug: string) => {
+  const cached = categoryCache.get(slug);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
+  }
+  return null;
+};
+
+const setCachedCategory = (slug: string, data: any) => {
+  categoryCache.set(slug, { data, timestamp: Date.now() });
+};
+
 const CategoryProductsPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   const [category, setCategory] = useState<Category | null>(null);
   const [ancestors, setAncestors] = useState<Ancestor[]>([]);
@@ -93,6 +111,7 @@ const CategoryProductsPage = () => {
   const [loading, setLoading] = useState(true);
   const [productsLoading, setProductsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   
   // Filters and sorting
   const [sortBy, setSortBy] = useState("newest");
@@ -107,47 +126,91 @@ const CategoryProductsPage = () => {
 
   const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (slug) {
       fetchCategoryAndProducts();
     }
-  }, [slug, sortBy]);
+  }, [slug]);
+
+  // Separate effect for sort changes to avoid refetching category
+  useEffect(() => {
+    if (category && initialLoadComplete) {
+      fetchProducts(category._id, 1);
+    }
+  }, [sortBy]);
 
   const fetchCategoryAndProducts = async () => {
+    // Cancel any pending requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     try {
       setLoading(true);
       setError(null);
+      setInitialLoadComplete(false);
 
-      // First, fetch category details by slug
-      const categoryResponse = await fetch(`${baseUrl}/api/categories/public/${slug}`);
-      if (!categoryResponse.ok) {
-        throw new Error("Category not found");
+      // Check cache first for category
+      const cachedCategory = getCachedCategory(slug!);
+      let categoryInfo;
+
+      if (cachedCategory) {
+        categoryInfo = cachedCategory;
+        setCategory(categoryInfo);
+        setAncestors(categoryInfo.ancestors || []);
+        setLoading(false);
+        
+        // Fetch products immediately since we have cached category
+        await fetchProducts(categoryInfo._id, 1, signal);
+      } else {
+        // Fetch category details
+        const categoryResponse = await fetch(`${baseUrl}/api/categories/public/${slug}`, { signal });
+        if (!categoryResponse.ok) {
+          throw new Error("Category not found");
+        }
+        
+        const categoryData = await categoryResponse.json();
+        if (!categoryData.success) {
+          throw new Error(categoryData.message || "Failed to load category");
+        }
+
+        categoryInfo = categoryData.data;
+        
+        // Cache the category
+        setCachedCategory(slug!, categoryInfo);
+        
+        setCategory(categoryInfo);
+        setAncestors(categoryInfo.ancestors || []);
+        setLoading(false);
+
+        // Fetch products
+        await fetchProducts(categoryInfo._id, 1, signal);
       }
       
-      const categoryData = await categoryResponse.json();
-      console.log('[CategoryProductsPage] Category response:', categoryData);
-      if (!categoryData.success) {
-        throw new Error(categoryData.message || "Failed to load category");
-      }
-
-      const categoryInfo = categoryData.data;
-      console.log('[CategoryProductsPage] Category ID:', categoryInfo._id);
-      
-      setCategory(categoryInfo);
-      setAncestors(categoryInfo.ancestors || []);
-
-      // Then fetch products for this category using the category ID
-      await fetchProducts(categoryInfo._id, 1);
+      setInitialLoadComplete(true);
       
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return; // Request was cancelled, ignore
+      }
       setError(err.message);
       console.error("Error fetching category:", err);
-    } finally {
       setLoading(false);
     }
   };
 
-  const fetchProducts = async (categoryId: string, page: number) => {
+  const fetchProducts = async (categoryId: string, page: number, signal?: AbortSignal) => {
     try {
       setProductsLoading(true);
 
@@ -183,20 +246,16 @@ const CategoryProductsPage = () => {
       }
 
       const response = await fetch(
-        `${baseUrl}/api/products/public?category=${categoryId}&page=${page}&limit=20&sortBy=${sortParam}&sortOrder=${orderParam}&isActive=true`
+        `${baseUrl}/api/products/public?category=${categoryId}&page=${page}&limit=20&sortBy=${sortParam}&sortOrder=${orderParam}&isActive=true`,
+        { signal }
       );
-      
-      console.log('[CategoryProductsPage] Products URL:', `${baseUrl}/api/products/public?category=${categoryId}&page=${page}&limit=20&sortBy=${sortParam}&sortOrder=${orderParam}&isActive=true`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch products");
       }
 
       const data = await response.json();
-      console.log('[CategoryProductsPage] Products response:', data);
       if (data.success) {
-        // Transform products to match ProductCard expected format
-        // Note: API returns data as array directly, not data.products
         const productsArray = Array.isArray(data.data) ? data.data : (data.data.products || []);
         const transformedProducts = productsArray.map((p: any) => ({
           ...p,
@@ -216,6 +275,9 @@ const CategoryProductsPage = () => {
         });
       }
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return; // Request was cancelled, ignore
+      }
       console.error("Error fetching products:", err);
     } finally {
       setProductsLoading(false);
@@ -231,10 +293,52 @@ const CategoryProductsPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-600" />
-          <p className="mt-2 text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-gray-50">
+        {/* Skeleton Breadcrumb */}
+        <div className="bg-white border-b">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Header */}
+        <div className="bg-white border-b">
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-4 w-24" />
+          </div>
+        </div>
+
+        {/* Skeleton Toolbar */}
+        <div className="bg-white border-b">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-9 w-24" />
+              <div className="flex gap-2">
+                <Skeleton className="h-9 w-40" />
+                <Skeleton className="h-9 w-20" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Products Grid */}
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="space-y-3">
+                <Skeleton className="aspect-square w-full rounded-lg" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -360,8 +464,29 @@ const CategoryProductsPage = () => {
       {/* Products Grid */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {productsLoading ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <div className={
+            viewMode === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+              : "flex flex-col gap-4"
+          }>
+            {Array.from({ length: 10 }).map((_, i) => (
+              viewMode === "grid" ? (
+                <div key={i} className="space-y-3">
+                  <Skeleton className="aspect-square w-full rounded-lg" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              ) : (
+                <div key={i} className="flex gap-4 p-4 bg-white rounded-lg">
+                  <Skeleton className="h-32 w-32 rounded-lg flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-4 w-1/4" />
+                  </div>
+                </div>
+              )
+            ))}
           </div>
         ) : products.length === 0 ? (
           <div className="text-center py-12">
