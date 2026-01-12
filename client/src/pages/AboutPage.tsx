@@ -28,7 +28,7 @@ const AboutPage = () => {
           <div className="container mx-auto px-4 py-16 md:py-24">
             <div className="max-w-3xl mx-auto text-center">
               <Badge className="bg-white/20 text-white hover:bg-white/30 mb-4">
-                SIT 402 - E-Commerce
+                SIT 405 - E-Commerce
               </Badge>
               <h1 className="text-4xl md:text-5xl font-bold mb-4">
                 Group 2 Project
@@ -59,7 +59,7 @@ const AboutPage = () => {
                   </div>
                 </div>
                 <p className="text-muted-foreground leading-relaxed">
-                  NewRan is a full-stack e-commerce platform developed as part of the SIT 402 E-Commerce 
+                  NewRan is a full-stack e-commerce platform developed as part of the SIT 405 E-Commerce 
                   course. This project demonstrates modern web development practices including React.js 
                   for the frontend, Node.js with Express for the backend, and MongoDB for data storage. 
                   The platform features user authentication, product management, shopping cart functionality, 
@@ -131,7 +131,7 @@ const AboutPage = () => {
                     <div className="space-y-3">
                       <div>
                         <p className="text-sm text-muted-foreground">Course Code</p>
-                        <p className="font-medium">SIT 402</p>
+                        <p className="font-medium">SIT 405</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Course Title</p>

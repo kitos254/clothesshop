@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Heart, ShoppingCart, Star, Eye } from 'lucide-react';
+import { Heart, ShoppingCart, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
@@ -20,6 +19,7 @@ interface Product {
   price: number;
   originalPrice?: number;
   currentPrice?: number;
+  comparePrice?: number;
   images?: { url: string; publicId?: string }[];
   inStock?: boolean;
   stock?: { quantity: number };
@@ -41,7 +41,6 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
-  const [isHovered, setIsHovered] = useState(false);
   const { addToCart } = useCart();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
 
@@ -58,9 +57,12 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
   const reviewCount = reviewArr.length;
   const avgRating = reviewCount > 0 ? (reviewArr.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviewCount) : 0;
 
-  // Get display price
+  // Get display price - currentPrice is the selling price, comparePrice is the crossed-out price
   const displayPrice = product.currentPrice || product.price;
-  const originalPrice = product.originalPrice;
+  // comparePrice is the "was" price (like MSRP), originalPrice is fallback
+  const compareAtPrice = product.comparePrice || product.originalPrice;
+  // Only show compare price if it's higher than display price
+  const showComparePrice = compareAtPrice && compareAtPrice > displayPrice;
 
   // Calculate total stock considering variations
   const calculateTotalStock = (): number => {
@@ -107,7 +109,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
         brand: brandName,
         price: displayPrice,
         image: product.images?.[0]?.url || '',
-        originalPrice: originalPrice,
+        originalPrice: compareAtPrice,
       });
     }
   };
@@ -131,7 +133,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
     const colors = product.variationOptions?.find(v => v.type === 'color')?.values || [];
     return (
       <Link to={`/product/${product._id}`}>
-        <div className="flex gap-6 p-6 bg-card rounded-lg shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex gap-6 p-6 bg-gray-50 rounded-lg shadow-sm hover:shadow-md transition-shadow">
           <div className="w-48 h-64 relative overflow-hidden rounded-md">
             <img
               src={product.images?.[0]?.url || ''}
@@ -155,7 +157,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
               <p className="text-xs text-muted-foreground uppercase tracking-wider">
                 {brandName}
               </p>
-              <h3 className="font-medium text-lg tracking-wide">
+              <h3 className="font-medium text-lg tracking-wide line-clamp-2">
                 {product.name}
               </h3>
             </div>
@@ -186,13 +188,13 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
               ))}
             </div>
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <span className="font-medium text-xl">
-                  ${product.price}
+              <div className="flex items-center gap-1 flex-wrap">
+                <span className="font-medium text-base whitespace-nowrap">
+                  KSh {displayPrice.toLocaleString()}
                 </span>
-                {product.originalPrice && (
-                  <span className="text-sm text-muted-foreground line-through">
-                    ${product.originalPrice}
+                {showComparePrice && (
+                  <span className="text-xs text-muted-foreground line-through whitespace-nowrap">
+                    KSh {compareAtPrice!.toLocaleString()}
                   </span>
                 )}
               </div>
@@ -226,11 +228,9 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
   return (
     <Link to={`/product/${product._id}`}>
       <div
-        className="product-card group cursor-pointer"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        className="product-card group cursor-pointer bg-gray-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
       >
-        <div className="product-image-container aspect-[3/4] mb-4 relative">
+        <div className="product-image-container aspect-[3/4] mb-0 relative">
           <img
             src={product.images?.[0]?.url || ''}
             alt={product.name}
@@ -249,51 +249,14 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
               </Badge>
             )}
           </div>
-          {/* Wishlist Button */}
-          <Button
-            size="icon"
-            variant="ghost"
-            className={`absolute top-3 right-3 bg-background/80 hover:bg-background transition-all ${
-              inWishlist ? 'text-red-500' : ''
-            }`}
-            onClick={handleToggleWishlist}
-          >
-            <Heart className={`h-4 w-4 ${inWishlist ? 'fill-current' : ''}`} />
-          </Button>
-          {/* Hover Overlay */}
-          <div
-            className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-300 ${
-              isHovered ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
-            <div className="flex space-x-2">
-              <Button
-                size="sm"
-                variant="secondary"
-                className="bg-background hover:bg-accent hover:text-accent-foreground"
-                onClick={handleAddToCart}
-                disabled={!isInStock}
-              >
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                {isInStock ? 'Add to Cart' : 'Out of Stock'}
-              </Button>
-              <Button
-                size="icon"
-                variant="secondary"
-                className="bg-background hover:bg-accent hover:text-accent-foreground"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
         </div>
         {/* Product Info */}
-        <div className="space-y-2">
+        <div className="space-y-1 p-2">
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
               {brandName}
             </p>
-            <h3 className="font-medium text-sm tracking-wide">
+            <h3 className="font-medium text-xs tracking-wide line-clamp-2">
               {product.name}
             </h3>
           </div>
@@ -303,7 +266,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
               {[...Array(5)].map((_, i) => (
                 <Star
                   key={i}
-                  className={`h-3 w-3 ${
+                  className={`h-2.5 w-2.5 ${
                     i < Math.round(avgRating)
                       ? 'fill-accent text-accent'
                       : 'text-muted-foreground'
@@ -311,7 +274,7 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
                 />
               ))}
             </div>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[10px] text-muted-foreground">
               ({reviewCount})
             </span>
           </div>
@@ -320,26 +283,47 @@ const ProductCard = ({ product, viewMode = 'grid' }: ProductCardProps) => {
             {colors.slice(0, 3).map((color) => (
               <div
                 key={color}
-                className={`w-3 h-3 rounded-full border border-border ${getColorClass(color)}`}
+                className={`w-2.5 h-2.5 rounded-full border border-border ${getColorClass(color)}`}
                 title={color}
               />
             ))}
             {colors.length > 3 && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[10px] text-muted-foreground">
                 +{colors.length - 3}
               </span>
             )}
           </div>
           {/* Price */}
-          <div className="flex items-center space-x-2">
-            <span className="font-medium text-lg">
-              ${product.price}
+          <div className="flex items-center gap-1 overflow-hidden">
+            <span className="font-medium text-xs whitespace-nowrap">
+              KSh {displayPrice.toLocaleString()}
             </span>
-            {product.originalPrice && (
-              <span className="text-sm text-muted-foreground line-through">
-                ${product.originalPrice}
+            {showComparePrice && (
+              <span className="text-[10px] text-muted-foreground line-through whitespace-nowrap">
+                {compareAtPrice!.toLocaleString()}
               </span>
             )}
+          </div>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 h-7 text-[10px]"
+              onClick={handleAddToCart}
+              disabled={!isInStock}
+            >
+              <ShoppingCart className="h-2.5 w-2.5 mr-1" />
+              {isInStock ? 'Add' : 'Out'}
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className={`h-7 w-7 ${inWishlist ? 'text-red-500 border-red-500' : ''}`}
+              onClick={handleToggleWishlist}
+            >
+              <Heart className={`h-2.5 w-2.5 ${inWishlist ? 'fill-current' : ''}`} />
+            </Button>
           </div>
         </div>
       </div>
